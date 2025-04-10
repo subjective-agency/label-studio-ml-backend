@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   huggingface_ner:
     container_name: huggingface_ner
@@ -11,12 +9,11 @@ services:
         TEST_ENV: ${TEST_ENV}
     environment:
       # If you are using this model for training, you have to connect it to Label Studio
-      - LABEL_STUDIO_HOST=http://localhost:8080
-      - LABEL_STUDIO_API_KEY=your-api-key
+      - LABEL_STUDIO_HOST=http://localhost:17777
+      - LABEL_STUDIO_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6ODA1MTQyMDc0OCwiaWF0IjoxNzQ0MjIwNzQ4LCJqdGkiOiIyMzEyODk0YmNlZWU0NWQ2ODRlN2M1ZTBkMGQ5Y2JjMSIsInVzZXJfaWQiOjF9.VQUUY8zFvYdvZsHy68bHd2AMMg00gUAlyxWvgmqBzVw
       # Use any model for [AutoModelForSequenceClassification](https://huggingface.co/transformers/v3.0.2/model_doc/auto.html#automodelforsequenceclassification)
       - BASELINE_MODEL_NAME=dslim/bert-base-NER
-      # change it to this model if you want to run training
-      # - BASELINE_MODEL_NAME=distilbert/distilbert-base-uncased
+      # - BASELINE_MODEL_NAME=distilbert/distilbert-base-uncased \\ google-bert/bert-base-uncased
       # The model directory for the fine-tuned checkpoints (relative to $MODEL_DIR)
       - FINETUNED_MODEL_NAME=finetuned_model
       # The number of labeled tasks to download from Label Studio before starting training
@@ -44,3 +41,7 @@ services:
     volumes:
       - "./data/server:/data"
       - "./data/.cache:/root/.cache"
+
+networks:
+  default:
+    driver: bridge	

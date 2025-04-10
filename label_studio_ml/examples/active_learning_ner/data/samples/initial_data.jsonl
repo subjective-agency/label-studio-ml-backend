@@ -1,0 +1,10 @@
+{"text": "Apple is looking at buying U.K. startup for $1 billion.", "labels": ["B-ORG", "O", "O", "O", "O", "B-MISC", "O", "O", "O", "O"]}
+{"text": "San Francisco considers banning facial recognition technology.", "labels": ["B-LOC", "I-LOC", "O", "O", "O", "O", "O", "O"]}
+{"text": "Google CEO Sundar Pichai announced the new product yesterday.", "labels": ["B-ORG", "B-POS", "B-PER", "I-PER", "O", "O", "O", "O", "O"]}
+{"text": "Microsoft's new chatbot is powered by ChatGPT technology.", "labels": ["B-ORG", "O", "O", "O", "O", "O", "O", "B-MISC", "O"]}
+{"text": "Elon Musk said Tesla will open a factory in Berlin.", "labels": ["B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O", "O", "B-LOC", "O"]}
+{"text": "Amazon announced record profits for Q4 2022.", "labels": ["B-ORG", "O", "O", "O", "O", "B-MISC", "I-MISC", "O"]}
+{"text": "The European Union has introduced new regulations for tech companies.", "labels": ["O", "B-ORG", "I-ORG", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"text": "Facebook rebrands as Meta to reflect focus on the metaverse.", "labels": ["B-ORG", "O", "O", "B-ORG", "O", "O", "O", "O", "O", "O", "O"]}
+{"text": "Tim Cook unveiled the new iPhone at Apple Park in Cupertino.", "labels": ["B-PER", "I-PER", "O", "O", "O", "B-MISC", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"text": "The Senate will vote on the infrastructure bill next week.", "labels": ["O", "B-ORG", "O", "O", "O", "O", "O", "O", "O", "O", "O"]} 

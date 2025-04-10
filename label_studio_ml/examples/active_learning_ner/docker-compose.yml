@@ -1,0 +1,48 @@
+services:
+  active_learning_ner:
+    container_name: active_learning_ner
+    image: heartexlabs/label-studio-ml-backend:active-learning-ner
+    init: true
+    build:
+      context: ../../..
+      dockerfile: label_studio_ml/examples/active_learning_ner/Dockerfile
+    environment:
+      # Label Studio connection
+      - LABEL_STUDIO_HOST=http://localhost:17777
+      - LABEL_STUDIO_API_KEY=${LABEL_STUDIO_API_KEY}
+      # Base model configuration
+      - BASELINE_MODEL_NAME=dslim/bert-base-NER
+      # The model directory for fine-tuned checkpoints
+      - FINETUNED_MODEL_NAME=finetuned_model
+      # The number of labeled tasks to download before starting training
+      - START_TRAINING_EACH_N_UPDATES=10
+      # Training configuration
+      - LEARNING_RATE=2e-5
+      - NUM_TRAIN_EPOCHS=3
+      - WEIGHT_DECAY=0.01
+      - MAX_SEQUENCE_LENGTH=128
+      # Active learning configuration
+      - UNCERTAINTY_THRESHOLD=0.8
+      - SAMPLES_PER_ITERATION=500
+      # MLflow configuration
+      - MLFLOW_TRACKING_URI=sqlite:///mlruns.db
+      # Basic authentication
+      - BASIC_AUTH_USER=
+      - BASIC_AUTH_PASS=
+      # Logging
+      - LOG_LEVEL=INFO
+      # Server configuration
+      - WORKERS=1
+      - THREADS=8
+      # Model directory
+      - MODEL_DIR=/data/models
+    ports:
+      - "9090:9090"
+    volumes:
+      - "./data/server:/data"
+      - "./data/.cache:/root/.cache"
+      - "./data/mlruns:/app/mlruns"
+
+networks:
+  default:
+    driver: bridge 
