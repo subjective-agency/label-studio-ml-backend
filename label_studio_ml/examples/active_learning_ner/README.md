@@ -78,7 +78,7 @@ starting with a minimal set of labeled examples.
 
 4. Build and start the Active Learning NER backend:
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
 5. Create necessary directories:
