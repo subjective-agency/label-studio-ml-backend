@@ -1,0 +1,43 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# We'll manually copy minimal files without installing dependencies
+COPY label_studio_ml/examples/active_learning_ner/model.py /app/model.py
+COPY label_studio_ml/examples/active_learning_ner/_wsgi.py /app/_wsgi.py
+
+# Add startup script
+COPY label_studio_ml/examples/active_learning_ner/start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Set environment variables
+ENV PORT=9090
+
+# Create a simple server script that returns a health check
+RUN echo 'from flask import Flask, jsonify\n\
+app = Flask(__name__)\n\
+\n\
+@app.route("/health", methods=["GET"])\n\
+def health():\n\
+    return jsonify({"status": "UP"})\n\
+\n\
+if __name__ == "__main__":\n\
+    app.run(host="0.0.0.0", port=9090)' > /app/server.py
+
+# Create entrypoint script
+RUN echo '#!/bin/bash\n\
+cd /app\n\
+python server.py' > /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
+
+# Expose the port
+EXPOSE 9090
+
+# Set the entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"] 

@@ -16,11 +16,10 @@ COPY label_studio_ml/examples/active_learning_ner/requirements.txt /app/requirem
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install the label_studio_ml package
-COPY . /app
-RUN pip install -e .
+# Copy necessary files instead of installing the package
+COPY label_studio_ml /app/label_studio_ml
 
-# Set environment variables
+# Add current directory to Python path
 ENV PYTHONPATH=/app
 ENV MODEL_DIR=/data/models
 ENV PORT=9090
@@ -38,20 +37,10 @@ ENV WEIGHT_DECAY=0.01
 ENV MAX_SEQUENCE_LENGTH=128
 ENV UNCERTAINTY_THRESHOLD=0.8
 ENV SAMPLES_PER_ITERATION=500
-ENV MLFLOW_TRACKING_URI=sqlite:///mlruns.db
+# ENV MLFLOW_TRACKING_URI=sqlite:///mlruns.db
 ENV WORKERS=1
 ENV THREADS=8
 ENV LOG_LEVEL=INFO
 
-# Create entrypoint script
-RUN echo '#!/bin/bash\n\
-cd /app\n\
-python -m label_studio_ml.server -m label_studio_ml.examples.active_learning_ner.model:ActiveLearningNER\
- -p $PORT --host 0.0.0.0 --workers=$WORKERS --threads=$THREADS "$@"' > /app/entrypoint.sh && \
-    chmod +x /app/entrypoint.sh
-
 # Expose the port
-EXPOSE 9090
-
-# Set the entrypoint
-ENTRYPOINT ["/app/entrypoint.sh"] 
+EXPOSE 9090 

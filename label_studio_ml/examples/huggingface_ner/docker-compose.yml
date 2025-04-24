@@ -10,7 +10,7 @@ services:
     environment:
       # If you are using this model for training, you have to connect it to Label Studio
       - LABEL_STUDIO_HOST=http://localhost:17777
-      - LABEL_STUDIO_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6ODA1MTQyMDc0OCwiaWF0IjoxNzQ0MjIwNzQ4LCJqdGkiOiIyMzEyODk0YmNlZWU0NWQ2ODRlN2M1ZTBkMGQ5Y2JjMSIsInVzZXJfaWQiOjF9.VQUUY8zFvYdvZsHy68bHd2AMMg00gUAlyxWvgmqBzVw
+      - LABEL_STUDIO_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6ODA1MTY1NDMwMiwiaWF0IjoxNzQ0NDU0MzAyLCJqdGkiOiJkZDRjYzFlOTE5ZWQ0YjBiOGU1YTc1YjRjMWEyYzAzYiIsInVzZXJfaWQiOjF9.5_x4haFw9mbks7P2-I6GDx-EyNnNwJoy0aKPw9UmLhk
       # Use any model for [AutoModelForSequenceClassification](https://huggingface.co/transformers/v3.0.2/model_doc/auto.html#automodelforsequenceclassification)
       - BASELINE_MODEL_NAME=dslim/bert-base-NER
       # - BASELINE_MODEL_NAME=distilbert/distilbert-base-uncased \\ google-bert/bert-base-uncased

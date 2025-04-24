@@ -4,7 +4,12 @@ import argparse
 from label_studio_ml.model import LabelStudioMLBase
 from label_studio_ml.server import init_app
 
-from model import ActiveLearningNER
+# Update import to use full path
+try:
+    from label_studio_ml.examples.active_learning_ner.model import ActiveLearningNER
+except ImportError:
+    # Fallback for direct execution
+    from model import ActiveLearningNER
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

@@ -15,6 +15,7 @@ from datasets import Dataset, ClassLabel, Value, Sequence, Features
 from functools import partial
 from torch.utils.data import DataLoader
 from sklearn.metrics import classification_report
+import label_studio_sdk
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ logger.setLevel(getattr(logging, LOG_LEVEL))
 MODEL_DIR = os.getenv('MODEL_DIR', './models')
 BASELINE_MODEL_NAME = os.getenv('BASELINE_MODEL_NAME', 'dslim/bert-base-NER')
 FINETUNED_MODEL_NAME = os.getenv('FINETUNED_MODEL_NAME', 'finetuned_model')
-LABEL_STUDIO_HOST = os.getenv('LABEL_STUDIO_HOST', 'http://localhost:8080')
+LABEL_STUDIO_URL = os.getenv('LABEL_STUDIO_URL', 'http://localhost:17777')
 LABEL_STUDIO_API_KEY = os.getenv('LABEL_STUDIO_API_KEY', '')
 START_TRAINING_EACH_N_UPDATES = int(os.getenv('START_TRAINING_EACH_N_UPDATES', '10'))
 LEARNING_RATE = float(os.getenv('LEARNING_RATE', '2e-5'))
@@ -126,8 +127,8 @@ class NERDataset(torch.utils.data.Dataset):
 class ActiveLearningNER(LabelStudioMLBase):
     """Active Learning NER model for Label Studio ML Backend"""
     
-    def __init__(self, **kwargs):
-        super(ActiveLearningNER, self).__init__(**kwargs)
+    def __init__(self, project_id=None, label_config=None, **kwargs):
+        super(ActiveLearningNER, self).__init__(project_id=project_id, label_config=label_config, **kwargs)
         
         # Initialize model and tokenizer
         self.tokenizer, self.model = get_model_and_tokenizer()
@@ -141,19 +142,43 @@ class ActiveLearningNER(LabelStudioMLBase):
         self.max_length = MAX_SEQUENCE_LENGTH
         
         # Initialize version
-        self.model_version = self.get('model_version', f'{self.__class__.__name__}-v0.0.1')
-        logger.info(f"Model loaded with version: {self.model_version}")
+        model_version = self.get('model_version') or f'{self.__class__.__name__}-v0.0.1'
+        self.set('model_version', model_version)
+        logger.info(f"Model loaded with version: {self.get('model_version')}")
     
     def predict(self, tasks, context=None, **kwargs):
         """Get predictions and uncertainties for tasks"""
-        texts = [task['data']['text'] for task in tasks]
+        # Modified to support both 'text' and 'sentence' keys
+        texts = []
+        for task in tasks:
+            if 'text' in task['data']:
+                texts.append(task['data']['text'])
+            elif 'sentence' in task['data']:
+                texts.append(task['data']['sentence'])
+            else:
+                # Log the keys available to help debug
+                logger.error(f"No text found in task data. Available keys: {list(task['data'].keys())}")
+                raise KeyError("Neither 'text' nor 'sentence' key found in task data")
+        
         results = []
         
         tokenizer, model = get_model_and_tokenizer()
         model.eval()
         
         li = self.label_interface
-        from_name, to_name, value = li.get_first_tag_occurence('Labels', 'Text')
+        try:
+            # Try different combinations of tag names
+            from_name, to_name, value = li.get_first_tag_occurence('label', 'text')
+            logger.info(f"Found tag configuration: from_name={from_name}, to_name={to_name}")
+        except ValueError:
+            try:
+                from_name, to_name, value = li.get_first_tag_occurence('Labels', 'Text')
+                logger.info(f"Found tag configuration: from_name={from_name}, to_name={to_name}")
+            except ValueError:
+                # If still not found, try to extract from the label_config directly
+                logger.warning("Could not find standard tag configuration, using default values")
+                from_name = "label"  # Default label name
+                to_name = "text"     # Default text field name
         
         with torch.no_grad():
             for idx, text in enumerate(texts):
@@ -192,12 +217,12 @@ class ActiveLearningNER(LabelStudioMLBase):
                 results.append({
                     'result': result,
                     'score': 1.0 - mean_uncertainty,
-                    'model_version': self.model_version
+                    'model_version': self.get('model_version')
                 })
                 
                 logger.debug(f"Prediction for task {task_id}: uncertainty={mean_uncertainty:.4f}")
         
-        return ModelResponse(predictions=results, model_version=self.model_version)
+        return ModelResponse(predictions=results, model_version=str(self.get('model_version')))
     
     def _create_ner_annotation(self, text, predictions, uncertainties, from_name, to_name):
         """Convert model predictions to Label Studio annotation format"""
@@ -280,6 +305,92 @@ class ActiveLearningNER(LabelStudioMLBase):
         logger.info(f"Selected {len(selected_tasks)} uncertain samples for annotation")
         return selected_tasks
     
+    def _get_tasks(self, project_id):
+        """Get tasks from Label Studio API with improved error handling and retries"""
+        max_retries = 3
+        retry_delay = 5  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                # Log connection attempt
+                logger.info(f"Connecting to Label Studio at {LABEL_STUDIO_URL} (attempt {attempt+1}/{max_retries})")
+                
+                # download annotated tasks from Label Studio
+                ls = label_studio_sdk.Client(LABEL_STUDIO_URL, LABEL_STUDIO_API_KEY)
+                # logger.warning(f"Label Studio client created with API key: {LABEL_STUDIO_API_KEY}")
+                project = ls.get_project(id=project_id)
+                tasks = project.get_labeled_tasks()
+                logger.info(f"Successfully retrieved {len(tasks)} labeled tasks from project {project_id}")
+                return tasks
+            except Exception as e:
+                if "ConnectionError" in str(e) or "Connection refused" in str(e):
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Connection to Label Studio failed (attempt {attempt+1}/{max_retries}). "
+                                     f"Retrying in {retry_delay} seconds... Error: {e}")
+                        import time
+                        time.sleep(retry_delay)
+                    else:
+                        logger.error(f"Error connecting to Label Studio after {max_retries} attempts. "
+                                    f"Please check that Label Studio is running and accessible at {LABEL_STUDIO_URL}. "
+                                    f"If running in Docker, ensure the network configuration is correct. Error: {e}")
+                else:
+                    logger.error(f"Error retrieving tasks from Label Studio: {e}", exc_info=True)
+                
+        # If we've exhausted all retries or encountered a non-connection error
+        return []
+
+    def _get_annotations_from_event(self, data):
+        """Extract annotations from event data"""
+        logger.warning(f"Getting annotations from event with keys: {list(data.keys())}")
+        
+        # For both cases: START_TRAINING and annotation events, we need the project ID
+        project_id = None
+        if 'project' in data:
+            if isinstance(data['project'], dict):
+                project_id = data['project'].get('id')
+            else:
+                project_id = data['project']
+        elif 'annotation' in data and 'project' in data['annotation']:
+            project_id = data['annotation']['project']
+        
+        if not project_id:
+            logger.error("No project ID found in data")
+            return []
+            
+        # Get all labeled tasks from the project
+        tasks = self._get_tasks(project_id)
+        if not tasks:
+            return []
+        
+        # Convert tasks to the format expected by _prepare_training_dataset
+        result = []
+        for task in tasks:
+            # Get text from task data
+            task_data = task.get('data', {})
+            text = None
+            if 'text' in task_data:
+                text = task_data['text']
+            elif 'sentence' in task_data:
+                text = task_data['sentence']
+            else:
+                logger.warning(f"No text found in task data. Available keys: {list(task_data.keys())}")
+                continue
+            
+            # Add each annotation
+            for annotation in task.get('annotations', []):
+                # Skip drafts, cancelled or skipped annotations
+                if annotation.get('draft') or annotation.get('was_cancelled') or annotation.get('skipped'):
+                    continue
+                    
+                if annotation.get('result'):
+                    result.append({
+                        'text': text,
+                        'result': annotation['result']
+                    })
+        
+        logger.info(f"Processed {len(result)} annotations for training")
+        return result
+    
     def fit(self, event, data, **kwargs):
         """Train model with active learning"""
         if event not in ('ANNOTATION_CREATED', 'ANNOTATION_UPDATED', 'START_TRAINING'):
@@ -290,10 +401,14 @@ class ActiveLearningNER(LabelStudioMLBase):
         
         # Get annotations from Label Studio
         try:
+            # For normal annotation events, we want to make sure we have enough annotations
             annotations = self._get_annotations_from_event(data)
             
-            if not annotations or len(annotations) < START_TRAINING_EACH_N_UPDATES:
+            if event != 'START_TRAINING' and len(annotations) < START_TRAINING_EACH_N_UPDATES:
                 logger.info(f"Not enough annotations for training: {len(annotations)} < {START_TRAINING_EACH_N_UPDATES}")
+                return
+            elif len(annotations) == 0:
+                logger.warning("No annotations found, cannot train the model")
                 return
             
             logger.info(f"Training with {len(annotations)} annotations")
@@ -316,34 +431,18 @@ class ActiveLearningNER(LabelStudioMLBase):
                 logger.info(f"Model saved to {save_path}")
                 
                 # Update model version
-                self.model_version = f"{self.__class__.__name__}-v{metrics['val_f1']:.4f}"
-                self.set("model_version", self.model_version)
+                new_model_version = f"{self.__class__.__name__}-v{metrics['val_f1']:.4f}"
+                self.set('model_version', new_model_version)
                 
                 return {
                     'status': 'ok',
                     'metrics': metrics,
-                    'model_version': self.model_version
+                    'model_version': self.get('model_version')
                 }
         
         except Exception as e:
             logger.error(f"Error during training: {e}", exc_info=True)
             return {'status': 'error', 'error': str(e)}
-    
-    def _get_annotations_from_event(self, data):
-        """Extract annotations from event data"""
-        annotation = data['annotation']
-        project_id = annotation['project']
-        
-        # TODO: Implement this to get all annotations from the project
-        # For now, just return the single annotation from the event
-        result = []
-        if annotation.get('result'):
-            result.append({
-                'text': self.preload_task_data(data['task'], data['task']['data']['text']),
-                'result': annotation['result']
-            })
-        
-        return result
     
     def _prepare_training_dataset(self, annotations):
         """Convert annotations to training dataset"""
@@ -502,6 +601,10 @@ class ActiveLearningNER(LabelStudioMLBase):
             "val_precision": eval_metrics["val_precision"],
             "val_recall": eval_metrics["val_recall"]
         }
+        
+        # Update model version
+        model_version = f"{self.__class__.__name__}-v{metrics['val_f1']:.4f}"
+        self.set('model_version', model_version)
         
         return metrics
     

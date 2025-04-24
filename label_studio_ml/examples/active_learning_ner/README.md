@@ -1,3 +1,39 @@
+# Active Learning for Named Entity Recognition (NER)
+
+This example demonstrates how to implement Active Learning for NER tasks using the Label Studio ML Backend.
+
+## Docker Network Configuration
+
+**Important:** This ML backend connects to Label Studio which can be running either:
+
+### Option 1: Label Studio running natively on your host machine
+
+If you're running Label Studio directly on your host machine (e.g., using `label-studio start -p 17777`), the docker-compose.yml is configured to use the special `host.docker.internal` hostname which resolves to your host machine from inside the Docker container:
+
+```yaml
+environment:
+  - LABEL_STUDIO_URL=http://host.docker.internal:17777  # Points to Label Studio on host machine
+  
+extra_hosts:
+  - "host.docker.internal:host-gateway"  # Ensures host.docker.internal works on Linux
+```
+
+### Option 2: Label Studio running in Docker
+
+If you're running Label Studio in its own Docker container, you'll need to update the `docker-compose.yml` to use Docker networking:
+
+```yaml
+environment:
+  - LABEL_STUDIO_URL=http://label-studio:8080  # Change to match your Label Studio container name
+  
+networks:
+  label-studio-network:
+    external: true
+    name: label-studio_default  # Change to match your Label Studio network name
+```
+
+If you're not using Docker at all, update the `.env` file with your Label Studio URL.
+
 # Active Learning NER with Label Studio ML Backend
 
 This backend implements an active learning pipeline for Named Entity Recognition (NER) tasks, integrated with Label Studio. 
@@ -28,23 +64,29 @@ starting with a minimal set of labeled examples.
    cd label-studio-ml-backend
    ```
 
-2. Set your Label Studio API key in an environment variable:
-   ```bash
-   export LABEL_STUDIO_API_KEY=your_api_key_here
-   ```
-
-3. Build and start the Active Learning NER backend:
+2. Configure your environment by editing the `.env` file:
    ```bash
    cd label_studio_ml/examples/active_learning_ner
+   # Edit .env file with your settings
+   nano .env
+   ```
+
+3. Set your Label Studio API key in the `.env` file:
+   ```
+   LABEL_STUDIO_API_KEY=your_api_key_here
+   ```
+
+4. Build and start the Active Learning NER backend:
+   ```bash
    docker-compose up -d
    ```
 
-4. Create necessary directories:
+5. Create necessary directories:
    ```bash
    mkdir -p data/server/models data/.cache data/mlruns
    ```
 
-5. The backend will be available at http://localhost:9090
+6. The backend will be available at http://localhost:9090
 
 ### Connecting to Label Studio
 
@@ -68,11 +110,11 @@ starting with a minimal set of labeled examples.
 
 ## Configuration
 
-The backend can be configured with the following environment variables in the docker-compose.yml file:
+The backend can be configured by editing the `.env` file. Here are the available configuration options:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| LABEL_STUDIO_HOST | URL of your Label Studio instance | http://localhost:8080 |
+| LABEL_STUDIO_HOST | URL of your Label Studio instance | http://localhost:17777 |
 | LABEL_STUDIO_API_KEY | API key for Label Studio | (required) |
 | BASELINE_MODEL_NAME | Base Hugging Face model to use | dslim/bert-base-NER |
 | FINETUNED_MODEL_NAME | Directory name for saving fine-tuned models | finetuned_model |
@@ -85,6 +127,8 @@ The backend can be configured with the following environment variables in the do
 | SAMPLES_PER_ITERATION | Number of samples to select in each active learning iteration | 500 |
 | MLFLOW_TRACKING_URI | URI for MLflow tracking | sqlite:///mlruns.db |
 | LOG_LEVEL | Logging level | INFO |
+| WORKERS | Number of server workers | 1 |
+| THREADS | Number of server threads | 8 |
 
 ## Active Learning Workflow
 
@@ -168,6 +212,61 @@ This endpoint returns the IDs of the most uncertain samples for annotation.
 - **Low performance**: Try increasing `NUM_TRAIN_EPOCHS` or decreasing `LEARNING_RATE`
 - **Memory issues**: Reduce `MAX_SEQUENCE_LENGTH` or use a smaller base model
 - **Connection errors**: Ensure Label Studio is accessible from the Docker container network
+
+## Troubleshooting Connection Issues
+
+If you're experiencing issues connecting your Active Learning NER backend to Label Studio, here are some common solutions:
+
+### 1. Environment Variables
+
+Ensure your `.env` file contains the correct values for:
+
+```
+LABEL_STUDIO_URL=http://your-label-studio-instance:8080
+LABEL_STUDIO_API_KEY=your_api_key_from_label_studio
+```
+
+You can get your API key from Label Studio by going to Account & Settings → Access Token.
+
+### 2. Network Configuration
+
+For Label Studio running natively on your host:
+- Use `host.docker.internal:PORT` as the hostname in `docker-compose.yml`
+- Ensure the `extra_hosts` section is present (`host.docker.internal:host-gateway`)
+- Make sure your host firewall allows connections from Docker to your Label Studio port
+
+For Label Studio in Docker:
+- Make sure both containers are on the same network
+- Use the container name as the hostname (e.g., `http://label-studio:8080`)
+
+### 3. Testing the Connection
+
+You can test the connection from inside the container:
+
+```bash
+docker exec -it active_learning_ner curl -v http://host.docker.internal:17777/api/version
+```
+
+If this fails, there might be network connectivity issues between the Docker container and your host machine.
+
+### 4. Connecting in Label Studio
+
+After starting the ML backend:
+1. Go to your project settings in Label Studio
+2. Navigate to Machine Learning tab
+3. Click "Add Model" button
+4. Enter the ML backend URL: `http://localhost:9090` (if accessing from your computer)
+5. Click "Add" and verify the connection status
+
+### 5. Checking Logs
+
+If you still have issues, check the logs for detailed error messages:
+
+```
+docker-compose logs active_learning_ner
+```
+
+Look for connection errors, authentication issues, or model loading problems.
 
 ## References
 
